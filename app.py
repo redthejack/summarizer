@@ -2,7 +2,7 @@ import streamlit as st
 from openai import OpenAI  # New import style
 
 # Initialize the client with your API key
-client = OpenAI(api_key="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")  # 🔑 Replace with your actual key
+client = OpenAI(api_key="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")  # 🔑 Replace with your actual key
 
 st.title("🤖 AI Summarizer")
 st.write("Paste any text and get an instant summary!")
