@@ -94,44 +94,45 @@ if st.button("✨ Generate Summary", type="primary"):
         st.error("API connection failed - check your key")
     else:
         with st.spinner("🧠 Analyzing content..."):
-            try:
-                # Dynamic prompt based on user selection
-                length_map = {
-                    "Short": "1-2 concise sentences",
-                    "Medium": "3-5 informative sentences",
-                    "Detailed": "5+ comprehensive sentences"
-                }
-                
-                prompt = f"""
-                Create a {length_map[length.split(' ')[0]]} summary in {style} style:
-                - Preserve key facts and numbers
-                - Maintain original meaning
-                - Output in the same language as the text
-                
-                Text: {input_text}
-                """
-                
-                response = client.chat.completions.create(
-                    model="gpt-4-turbo-preview",
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.3
-                )
-                
-                summary = response.choices[0].message.content
-                
-                # Display results
-        st.markdown(f"""
-<div class="summary-card">
-    <h3>📝 Summary ({length.split(' ')[0]}, {style})</h3>
-    <p>{summary}</p>
-    <div style="margin-top: 1rem; font-size: 0.8rem; color: #666;">
-        Original: {len(input_text)} chars → Summary: {len(summary)} chars 
-        (Reduced by {round((1-len(summary)/len(input_text))*100)}%)
+           try:
+    # Dynamic prompt based on user selection
+    length_map = {
+        "Short": "1-2 concise sentences",
+        "Medium": "3-5 informative sentences",
+        "Detailed": "5+ comprehensive sentences"
+    }
+    
+    prompt = f"""
+    Create a {length_map[length.split(' ')[0]]} summary in {style} style:
+    - Preserve key facts and numbers
+    - Maintain original meaning
+    - Output in the same language as the text
+    
+    Text: {input_text}
+    """
+    
+    response = client.chat.completions.create(
+        model="gpt-4-turbo-preview",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3
+    )
+    
+    summary = response.choices[0].message.content
+    
+    # Display results
+    st.markdown(f"""
+    <div class="summary-card">
+        <h3>📝 Summary ({length.split(' ')[0]}, {style})</h3>
+        <p>{summary}</p>
+        <div style="margin-top: 1rem; font-size: 0.8rem; color: #666;">
+            Original: {len(input_text)} chars → Summary: {len(summary)} chars 
+            (Reduced by {round((1-len(summary)/len(input_text))*100)}%)
+        </div>
     </div>
-</div>
-""", unsafe_allow_html=True)
-            except Exception as e:
-                st.error(f"❌ Generation failed: {str(e)}")
+    """, unsafe_allow_html=True)
+    
+except Exception as e:  # ← This was missing!
+    st.error(f"❌ Generation failed: {str(e)}")
 
 # ========== 📱 Mobile-Friendly Footer ==========
 st.divider()
