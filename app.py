@@ -1,103 +1,142 @@
 import streamlit as st
-from PIL import Image  # For logo (optional)
+from openai import OpenAI
+import os
+from PIL import Image  # For logo
 
-# ======== 🎀 Custom Styling ========
+# ========== 🔐 Initialize OpenAI Client ==========
+@st.cache_resource
+def init_client():
+    try:
+        client = OpenAI(api_key=st.secrets["openai"]["api_key"])
+        # Verify connection
+        client.models.list()
+        return client
+    except Exception as e:
+        st.error(f"🔴 API Connection Error: {str(e)}")
+        return None
+
+client = init_client()
+
+# ========== 🎨 Custom Styling ==========
 st.set_page_config(
     page_title="AI Summarizer Pro",
     page_icon="✂️",
-    layout="centered"
+    layout="centered",
+    initial_sidebar_state="collapsed"
 )
 
-# Inject custom CSS
 st.markdown("""
 <style>
-    .stTextArea [data-baseweb=textarea] {
-        background-color: #f9f9f9;
-        border-radius: 12px;
+    [data-testid="stAppViewContainer"] {
+        background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
     }
-    .stButton button {
+    .stTextArea textarea {
+        background: rgba(255,255,255,0.9) !important;
+        border-radius: 12px !important;
+    }
+    .summary-card {
+        background: rgba(255,255,255,0.95);
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        margin: 1rem 0;
+    }
+    .stButton>button {
         background: linear-gradient(90deg, #6e48aa 0%, #9d50bb 100%);
         color: white;
         border: none;
-        padding: 10px 24px;
         border-radius: 12px;
+        padding: 0.7rem 1.5rem;
+        font-weight: 600;
     }
-    .stButton button:hover {
-        opacity: 0.9;
-    }
-    .summary-box {
-        background: #f0f2f6;
-        border-radius: 12px;
-        padding: 20px;
-        margin-top: 20px;
+    .stMarkdown h1 {
+        color: #4a2c82;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# ======== 🏗️ App Layout ========
+# ========== 🖼️ Header Section ==========
 col1, col2 = st.columns([0.8, 0.2])
 with col1:
     st.title("✂️ AI Summarizer Pro")
+    st.caption("Transform long texts into concise summaries with GPT-4")
 with col2:
-    st.write("")  # Spacer
-    st.markdown("`v1.0 | Demo Mode`")
+    # Add your logo (replace with actual image)
+    st.image("https://via.placeholder.com/120x40?text=Your+Logo", width=120)
 
-st.subheader("Paste any text, article, or lecture notes")
-
-# ======== 📝 Input Area ========
+# ========== 📝 Main Input Area ==========
 input_text = st.text_area(
-    "**Your text:**",
+    "**Paste your text here:**",
     height=250,
-    placeholder="Paste content here... (Demo mode shows truncated text)"
+    placeholder="Paste article, report, or lecture notes...",
+    help="Supports 10+ languages automatically"
 )
 
-# ======== ✨ Generate Button ========
+# ========== ⚙️ Settings ==========
+with st.expander("⚙️ Advanced Options"):
+    col1, col2 = st.columns(2)
+    with col1:
+        length = st.selectbox(
+            "Summary Length",
+            ("Short (1-2 sentences)", "Medium (3-5 sentences)", "Detailed (5+ sentences)")
+        )
+    with col2:
+        style = st.selectbox(
+            "Style",
+            ("Academic", "Casual", "Bullet Points", "Executive Summary")
+        )
+
+# ========== 🚀 Generate Button ==========
 if st.button("✨ Generate Summary", type="primary"):
-    if input_text:
-        with st.spinner("Processing..."):
-            # Mock summary (replace with OpenAI API later)
-            mock_summary = f"**Demo Summary:**\n\n{input_text[:150]}... [truncated in demo mode]"
-            
-            # Fancy result box
-            st.markdown(f"""
-            <div class="summary-box">
-                📝 <b>Original length:</b> {len(input_text)} characters<br>
-                ✨ <b>Summary length:</b> {min(150, len(input_text))} characters<br><br>
-                {mock_summary}
-            </div>
-            """, unsafe_allow_html=True)
+    if not input_text:
+        st.warning("Please enter text to summarize")
+    elif not client:
+        st.error("API connection failed - check your key")
     else:
-        st.warning("Please enter text first!")
+        with st.spinner("🧠 Analyzing content..."):
+            try:
+                # Dynamic prompt based on user selection
+                length_map = {
+                    "Short": "1-2 concise sentences",
+                    "Medium": "3-5 informative sentences",
+                    "Detailed": "5+ comprehensive sentences"
+                }
+                
+                prompt = f"""
+                Create a {length_map[length.split(' ')[0]]} summary in {style} style:
+                - Preserve key facts and numbers
+                - Maintain original meaning
+                - Output in the same language as the text
+                
+                Text: {input_text}
+                """
+                
+                response = client.chat.completions.create(
+                    model="gpt-4-turbo-preview",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.3
+                )
+                
+                summary = response.choices[0].message.content
+                
+                # Display results
+                st.markdown(f"""
+                <div class="summary-card">
+                    <h3>📝 Summary ({length.split(' ')[0]}, {style})</h3>
+                    <p>{summary}</p>
+                    <div style="margin-top: 1rem; font-size: 0.8rem; color: #666;">
+                        Original: {len(input_text)} chars → Summary: {len(summary)} chars 
+                        (Reduced by {round((1-len(summary)/len(input_text))*100}%)
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+            except Exception as e:
+                st.error(f"❌ Generation failed: {str(e)}")
 
-# ======== 📊 Demo Stats ========
+# ========== 📱 Mobile-Friendly Footer ==========
 st.divider()
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.metric("Avg. Summary Time", "2.4s")
-with col2:
-    st.metric("Accuracy", "92%", "-8% in demo")
-with col3:
-    st.metric("Chars Reduced", "75%")
-
-# ======== ℹ️ How It Works ========
-with st.expander("ℹ️ How to use"):
-    st.markdown("""
-    1. Paste text in the box above  
-    2. Click **Generate Summary**  
-    3. Get instant condensed version  
-    *Real AI integration coming soon!*
-    """)
-
-st.markdown("""
-<style>
-    @media (prefers-color-scheme: dark) {
-        .summary-box {
-            background: #1e1e1e;
-        }
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# ======== 📱 Mobile-Friendly Footer ========
-st.divider()
-st.caption("© 2024 AI Summarizer Pro | [Contact Support](mailto:support@example.com)")
+st.caption("""
+🔒 Secure processing | 🌍 15+ languages supported | 
+[Terms](https://example.com) | [Privacy](https://example.com)
+""")
