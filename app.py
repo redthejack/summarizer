@@ -120,17 +120,16 @@ if st.button("✨ Generate Summary", type="primary"):
                 summary = response.choices[0].message.content
                 
                 # Display results
-                st.markdown(f"""
-                <div class="summary-card">
-                    <h3>📝 Summary ({length.split(' ')[0]}, {style})</h3>
-                    <p>{summary}</p>
-                    <div style="margin-top: 1rem; font-size: 0.8rem; color: #666;">
-                        Original: {len(input_text)} chars → Summary: {len(summary)} chars 
-                        (Reduced by {round((1-len(summary)/len(input_text))*100}%)
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                
+        st.markdown(f"""
+<div class="summary-card">
+    <h3>📝 Summary ({length.split(' ')[0]}, {style})</h3>
+    <p>{summary}</p>
+    <div style="margin-top: 1rem; font-size: 0.8rem; color: #666;">
+        Original: {len(input_text)} chars → Summary: {len(summary)} chars 
+        (Reduced by {round((1-len(summary)/len(input_text))*100)}%)
+    </div>
+</div>
+""", unsafe_allow_html=True)
             except Exception as e:
                 st.error(f"❌ Generation failed: {str(e)}")
 
