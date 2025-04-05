@@ -1,127 +1,53 @@
 import streamlit as st
 from openai import OpenAI
-import time
 
-# ====== 🖤 ULTIMATE DARK MODE ======
-st.markdown("""
-<style>
-    :root {
-        --bg: #0f0f15;
-        --card: #1a1a25;
-        --text: #e0e0e0;
-        --primary: #9d7aff;
-        --secondary: #7a5eff;
-        --accent: #6a8eff;
-        --neon: 0 0 10px rgba(157, 122, 255, 0.5);
-    }
-    
-    /* Main container */
-    [data-testid="stAppViewContainer"] {
-        background: radial-gradient(circle at top left, #0a0a12 0%, var(--bg) 100%);
-        color: var(--text);
-    }
-    
-    /* Text input - Matrix style */
-    .stTextArea textarea {
-        background: rgba(30, 30, 45, 0.8) !important;
-        color: #f0f0f0 !important;
-        border: 1px solid #33334d !important;
-        border-radius: 8px !important;
-        font-family: monospace;
-    }
-    
-    /* Cyberpunk button */
-    .stButton>button {
-        background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%) !important;
-        color: black !important;
-        font-weight: bold !important;
-        border: none !important;
-        border-radius: 8px !important;
-        box-shadow: var(--neon);
-        transition: all 0.3s !important;
-    }
-    
-    .stButton>button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 0 15px rgba(157, 122, 255, 0.8);
-    }
-    
-    /* Glowing card */
-    .cyber-card {
-        background: var(--card);
-        border-radius: 12px;
-        padding: 1.5rem;
-        border-left: 3px solid var(--primary);
-        box-shadow: var(--neon);
-        margin: 1rem 0;
-        transition: transform 0.3s;
-    }
-    
-    .cyber-card:hover {
-        transform: translateY(-3px);
-    }
-    
-    /* Special title effect */
-    .neon-title {
-        color: var(--primary);
-        text-shadow: 0 0 8px rgba(157, 122, 255, 0.7);
-        font-weight: 800;
-    }
-</style>
-""", unsafe_allow_html=True)
+# ====== 🖤 INITIALIZE ONCE ======
+if "client" not in st.session_state:
+    st.session_state.client = OpenAI(api_key=st.secrets["openai"]["api_key"])
 
-# ====== 🚀 APP CODE ======
-st.markdown('<h1 class="neon-title">NEO SUMMARIZER</h1>', unsafe_allow_html=True)
-st.caption("AI-powered text condensation in cyber-dark theme")
-
-with st.expander("⚙️ SETTINGS", expanded=True):
-    col1, col2 = st.columns(2)
-    with col1:
-        style = st.selectbox("OUTPUT STYLE", 
-                           ["Technical", "Concise", "Bullet Points"])
-    with col2:
-        level = st.select_slider("DETAIL LEVEL", 
-                               ["Low", "Medium", "High"])
-
-input_text = st.text_area("INPUT TEXT:", height=250, 
-                         placeholder="Enter text to summarize...")
-
-# ====== 🤖 REAL AI SUMMARIZATION ======
-@st.cache_resource
-def init_client():
-    return OpenAI(api_key=st.secrets["openai"]["api_key"])
-
+# ====== 🤖 AI FUNCTION ======
 def generate_summary(text, style, detail):
     prompt = f"""
     Create a {detail.lower()}-detail {style.lower()} summary in Russian:
     - Preserve key facts
     - Maintain historical accuracy
-    - Output in clear bullet points
+    - Output in bullet points
     
     Text: {text}
     """
-    
-    client = init_client()
-    response = client.chat.completions.create(
+    response = st.session_state.client.chat.completions.create(
         model="gpt-4-turbo",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3
     )
     return response.choices[0].message.content
 
-# ====== 🚀 APP INTERFACE ======
+# ====== 🚀 APP LAYOUT ======
 st.markdown('<h1 class="neon-title">NEO SUMMARIZER</h1>', unsafe_allow_html=True)
 
+# Unique widget keys prevent duplication
 with st.expander("⚙️ SETTINGS", expanded=True):
     col1, col2 = st.columns(2)
     with col1:
-        style = st.selectbox("OUTPUT STYLE", ["Technical", "Concise", "Bullet Points"])
+        style = st.selectbox(
+            "OUTPUT STYLE", 
+            ["Technical", "Concise", "Bullet Points"],
+            key="style_select"  # Unique key
+        )
     with col2:
-        level = st.select_slider("DETAIL LEVEL", ["Low", "Medium", "High"])
+        level = st.select_slider(
+            "DETAIL LEVEL", 
+            ["Low", "Medium", "High"],
+            key="detail_slider"  # Unique key
+        )
 
-input_text = st.text_area("INPUT TEXT:", height=250, value="Адо́льф Ги́тлер (нем. Adolf Hitler...")  # Your sample text
+input_text = st.text_area(
+    "INPUT TEXT:", 
+    height=250, 
+    key="text_input"  # Unique key
+)
 
-if st.button("⚡ PROCESS TEXT"):
+if st.button("⚡ PROCESS TEXT", key="process_btn"):
     if not input_text:
         st.warning("Input field empty!")
     else:
@@ -141,8 +67,3 @@ if st.button("⚡ PROCESS TEXT"):
                 
             except Exception as e:
                 st.error(f"Quantum processor overload: {str(e)}")
-# ====== 🕶️ CREDITS ======
-st.divider()
-st.caption("""
-NEO SUMMARIZER v2.0 | [TERMS] | [PRIVACY] | 
-""")
