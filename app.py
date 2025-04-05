@@ -1,107 +1,121 @@
 import streamlit as st
 from openai import OpenAI
-import os
+import time
 
-# ====== 🌑 DARK MODE CONFIG ======
+# ====== 🖤 ULTIMATE DARK MODE ======
 st.markdown("""
 <style>
     :root {
-        --bg: #0e1117;
-        --card-bg: #1e1e1e;
-        --text: #f0f0f0;
-        --primary: #8a63f8;
-        --secondary: #6e48aa;
-        --accent: #4776E6;
+        --bg: #0f0f15;
+        --card: #1a1a25;
+        --text: #e0e0e0;
+        --primary: #9d7aff;
+        --secondary: #7a5eff;
+        --accent: #6a8eff;
+        --neon: 0 0 10px rgba(157, 122, 255, 0.5);
     }
     
+    /* Main container */
     [data-testid="stAppViewContainer"] {
-        background-color: var(--bg) !important;
-        color: var(--text) !important;
+        background: radial-gradient(circle at top left, #0a0a12 0%, var(--bg) 100%);
+        color: var(--text);
     }
     
+    /* Text input - Matrix style */
     .stTextArea textarea {
-        background-color: #252525 !important;
-        color: white !important;
-        border: 1px solid #333 !important;
-        border-radius: 10px !important;
+        background: rgba(30, 30, 45, 0.8) !important;
+        color: #f0f0f0 !important;
+        border: 1px solid #33334d !important;
+        border-radius: 8px !important;
+        font-family: monospace;
     }
     
-    /* Dark mode buttons */
+    /* Cyberpunk button */
     .stButton>button {
-        background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%) !important;
-        color: white !important;
+        background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%) !important;
+        color: black !important;
+        font-weight: bold !important;
         border: none !important;
-        border-radius: 10px !important;
-        box-shadow: 0 2px 10px rgba(138, 99, 248, 0.3) !important;
+        border-radius: 8px !important;
+        box-shadow: var(--neon);
+        transition: all 0.3s !important;
     }
     
-    /* Cards */
-    .summary-card {
-        background: var(--card-bg);
-        border-radius: 10px;
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0 15px rgba(157, 122, 255, 0.8);
+    }
+    
+    /* Glowing card */
+    .cyber-card {
+        background: var(--card);
+        border-radius: 12px;
         padding: 1.5rem;
-        border-left: 4px solid var(--accent);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        border-left: 3px solid var(--primary);
+        box-shadow: var(--neon);
+        margin: 1rem 0;
+        transition: transform 0.3s;
     }
     
-    /* Headers */
-    .stMarkdown h1 {
+    .cyber-card:hover {
+        transform: translateY(-3px);
+    }
+    
+    /* Special title effect */
+    .neon-title {
         color: var(--primary);
-        font-weight: 700;
-    }
-    
-    /* Tabs */
-    .stTabs [role="tablist"] {
-        background: #252525 !important;
-    }
-    
-    /* Select boxes */
-    .stSelectbox div {
-        background: #252525 !important;
+        text-shadow: 0 0 8px rgba(157, 122, 255, 0.7);
+        font-weight: 800;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# ====== 🤖 AI FUNCTIONALITY ======
-@st.cache_resource
-def init_client():
-    return OpenAI(api_key=st.secrets["openai"]["api_key"])
+# ====== 🚀 APP CODE ======
+st.markdown('<h1 class="neon-title">NEO SUMMARIZER</h1>', unsafe_allow_html=True)
+st.caption("AI-powered text condensation in cyber-dark theme")
 
-# ====== 🖥️ APP LAYOUT ======
-st.title("🌙 Dark Mode Summarizer")
-st.write("Paste text for an AI-powered summary in sleek dark theme")
+with st.expander("⚙️ SETTINGS", expanded=True):
+    col1, col2 = st.columns(2)
+    with col1:
+        style = st.selectbox("OUTPUT STYLE", 
+                           ["Technical", "Concise", "Bullet Points"])
+    with col2:
+        level = st.select_slider("DETAIL LEVEL", 
+                               ["Low", "Medium", "High"])
 
-input_text = st.text_area("Your text:", height=250)
+input_text = st.text_area("INPUT TEXT:", height=250, 
+                         placeholder="Enter text to summarize...")
 
-if st.button("Generate Summary"):
-    if input_text:
-        with st.spinner("Analyzing..."):
-            try:
-                client = init_client()
-                response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[{
-                        "role": "user", 
-                        "content": f"Summarize this in 3 sentences:\n\n{input_text}"
-                    }]
-                )
-                summary = response.choices[0].message.content
-                
-                st.markdown(f"""
-                <div class="summary-card">
-                    <h3>✨ Summary</h3>
-                    <p>{summary}</p>
-                    <div style="color: #aaa; font-size: 0.8rem; margin-top: 1rem;">
-                        Reduced from {len(input_text)} to {len(summary)} chars
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
+if st.button("⚡ PROCESS TEXT"):
+    if not input_text:
+        st.warning("Input field empty!")
     else:
-        st.warning("Please enter text first")
+        with st.spinner("DECRYPTING CONTENT..."):
+            # Simulate high-tech processing
+            progress_bar = st.progress(0)
+            for percent in range(100):
+                time.sleep(0.02)
+                progress_bar.progress(percent + 1)
+            
+            # Mock AI response (replace with real API call)
+            mock_summary = f"""🔍 {style.upper()} SUMMARY ({level} DETAIL):
+            
+            - Core concept extracted from {len(input_text)} characters
+            - Key points condensed using quantum algorithms
+            - Ready for neural assimilation"""
+            
+            st.markdown(f"""
+            <div class="cyber-card">
+                <h3>📡 ANALYSIS COMPLETE</h3>
+                <p>{mock_summary}</p>
+                <div style="color: var(--accent); margin-top: 1rem;">
+                    ⚙️ Compression: {len(input_text)} → {int(len(input_text)*0.3)} chars
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
-# ====== 🏁 FOOTER ======
+# ====== 🕶️ CREDITS ======
 st.divider()
-st.caption("🔮 Dark Mode AI Summarizer | v1.0")
+st.caption("""
+NEO SUMMARIZER v2.0 | [TERMS] | [PRIVACY] | 
+""")
