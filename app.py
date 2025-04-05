@@ -31,25 +31,41 @@ def apply_theme(theme):
         </style>
         """, unsafe_allow_html=True)
 
-# ====== 🤖 AI FUNCTIONS ======
-@st.cache_resource
-def init_client():
-    return OpenAI(api_key=st.secrets["openai"]["api_key"])
-
-def summarize(text, style="concise", language="en"):
-    prompt = f"""
-    Create a {style} summary in {language}:
-    - Key facts only
-    - { "Bullet points" if style == "technical" else "Paragraph format" }
-    - Max 3 sentences if "concise"
-    
-    Text: {text}
+def summarize(text, style="concise", output_lang="English"):
     """
+    Smart summarization with language handling:
+    - Auto-detects input language
+    - Summarizes in output_lang (or keeps original if 'Same as input')
+    """
+    # Language mapping
+    LANG_MAP = {
+        "English": "en",
+        "Russian": "ru",
+        "Spanish": "es",
+        "French": "fr", 
+        "German": "de",
+        "Same as input": "original"
+    }
+    
+    # Dynamic prompt
+    prompt = f"""
+    Analyze this text and create a {style.lower()} summary:
+    
+    **Requirements:**
+    1. Preserve all key facts and numbers
+    2. Output format: {"bullet points" if style == "Technical" else "paragraph"}
+    3. Output language: {output_lang if output_lang != "Same as input" else "same as input text"}
+    
+    **Text to summarize:**
+    {text}
+    """
+    
     response = client.chat.completions.create(
         model="gpt-4-turbo",
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=MAX_TOKENS
+        temperature=0.3
     )
+    
     return response.choices[0].message.content
 
 # ====== 📂 FILE PROCESSING ======
