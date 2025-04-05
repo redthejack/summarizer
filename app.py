@@ -1,106 +1,107 @@
 import streamlit as st
 from openai import OpenAI
 import os
-from PIL import Image  # For logo
 
-# ========== 🔐 Initialize OpenAI Client ==========
-@st.cache_resource
-def init_client():
-    try:
-        client = OpenAI(api_key=st.secrets["openai"]["api_key"])
-        # Verify connection
-        client.models.list()
-        return client
-    except Exception as e:
-        st.error(f"🔴 API Connection Error: {str(e)}")
-        return None
-
-client = init_client()
-
-# ====== 1. GLOBAL STYLE ======
+# ====== 🌑 DARK MODE CONFIG ======
 st.markdown("""
 <style>
     :root {
-        --primary: #6e48aa;
-        --secondary: #9d50bb;
+        --bg: #0e1117;
+        --card-bg: #1e1e1e;
+        --text: #f0f0f0;
+        --primary: #8a63f8;
+        --secondary: #6e48aa;
         --accent: #4776E6;
-        --light: #f8f9fa;
-        --dark: #212529;
     }
     
     [data-testid="stAppViewContainer"] {
-        background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
+        background-color: var(--bg) !important;
+        color: var(--text) !important;
     }
     
     .stTextArea textarea {
-        background: white !important;
-        border: 1px solid #e0e0e0 !important;
-        border-radius: 12px !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+        background-color: #252525 !important;
+        color: white !important;
+        border: 1px solid #333 !important;
+        border-radius: 10px !important;
     }
     
-    /* Gradient buttons */
+    /* Dark mode buttons */
     .stButton>button {
         background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%) !important;
         color: white !important;
         border: none !important;
-        border-radius: 12px !important;
-        padding: 0.7rem 1.5rem !important;
-        font-weight: 600 !important;
-        transition: all 0.3s ease !important;
-    }
-    
-    .stButton>button:hover {
-        opacity: 0.9;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(110, 72, 170, 0.3) !important;
+        border-radius: 10px !important;
+        box-shadow: 0 2px 10px rgba(138, 99, 248, 0.3) !important;
     }
     
     /* Cards */
     .summary-card {
-        background: white;
-        border-radius: 12px;
+        background: var(--card-bg);
+        border-radius: 10px;
         padding: 1.5rem;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
         border-left: 4px solid var(--accent);
-        margin: 1rem 0;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
     }
     
     /* Headers */
     .stMarkdown h1 {
         color: var(--primary);
         font-weight: 700;
-        margin-bottom: 0.5rem;
     }
     
-    .stMarkdown h2 {
-        color: var(--secondary);
-        border-bottom: 2px solid #eee;
-        padding-bottom: 0.25rem;
+    /* Tabs */
+    .stTabs [role="tablist"] {
+        background: #252525 !important;
+    }
+    
+    /* Select boxes */
+    .stSelectbox div {
+        background: #252525 !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# ====== 2. SAMPLE UI ======
-st.title("✨ Summarizer Pro")
-st.header("Generate Summary", divider="rainbow")
+# ====== 🤖 AI FUNCTIONALITY ======
+@st.cache_resource
+def init_client():
+    return OpenAI(api_key=st.secrets["openai"]["api_key"])
 
-input_text = st.text_area("Paste your content here:", height=250)
+# ====== 🖥️ APP LAYOUT ======
+st.title("🌙 Dark Mode Summarizer")
+st.write("Paste text for an AI-powered summary in sleek dark theme")
 
-if st.button("Magic Summarize 🎩"):
-    with st.expander("🔍 See Summary", expanded=True):
-        st.markdown("""
-        <div class="summary-card">
-            <h3>This is a color-enhanced summary card!</h3>
-            <p>Notice the smooth gradients, elegant shadows, and cohesive color scheme.</p>
-        </div>
-        """, unsafe_allow_html=True)
+input_text = st.text_area("Your text:", height=250)
 
-# ====== 3. FOOTER ======
+if st.button("Generate Summary"):
+    if input_text:
+        with st.spinner("Analyzing..."):
+            try:
+                client = init_client()
+                response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[{
+                        "role": "user", 
+                        "content": f"Summarize this in 3 sentences:\n\n{input_text}"
+                    }]
+                )
+                summary = response.choices[0].message.content
+                
+                st.markdown(f"""
+                <div class="summary-card">
+                    <h3>✨ Summary</h3>
+                    <p>{summary}</p>
+                    <div style="color: #aaa; font-size: 0.8rem; margin-top: 1rem;">
+                        Reduced from {len(input_text)} to {len(summary)} chars
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
+    else:
+        st.warning("Please enter text first")
+
+# ====== 🏁 FOOTER ======
 st.divider()
-st.markdown("""
-<span style="color: var(--secondary); font-size: 0.9rem">
-    🔒 <strong>Privacy First</strong> | 🌈 <strong>Color-Optimized</strong> | 
-    🚀 <strong>Powered by AI</strong>
-</span>
-""", unsafe_allow_html=True)
+st.caption("🔮 Dark Mode AI Summarizer | v1.0")
