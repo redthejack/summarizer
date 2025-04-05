@@ -86,34 +86,61 @@ with st.expander("⚙️ SETTINGS", expanded=True):
 input_text = st.text_area("INPUT TEXT:", height=250, 
                          placeholder="Enter text to summarize...")
 
+# ====== 🤖 REAL AI SUMMARIZATION ======
+@st.cache_resource
+def init_client():
+    return OpenAI(api_key=st.secrets["openai"]["api_key"])
+
+def generate_summary(text, style, detail):
+    prompt = f"""
+    Create a {detail.lower()}-detail {style.lower()} summary in Russian:
+    - Preserve key facts
+    - Maintain historical accuracy
+    - Output in clear bullet points
+    
+    Text: {text}
+    """
+    
+    client = init_client()
+    response = client.chat.completions.create(
+        model="gpt-4-turbo",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3
+    )
+    return response.choices[0].message.content
+
+# ====== 🚀 APP INTERFACE ======
+st.markdown('<h1 class="neon-title">NEO SUMMARIZER</h1>', unsafe_allow_html=True)
+
+with st.expander("⚙️ SETTINGS", expanded=True):
+    col1, col2 = st.columns(2)
+    with col1:
+        style = st.selectbox("OUTPUT STYLE", ["Technical", "Concise", "Bullet Points"])
+    with col2:
+        level = st.select_slider("DETAIL LEVEL", ["Low", "Medium", "High"])
+
+input_text = st.text_area("INPUT TEXT:", height=250, value="Адо́льф Ги́тлер (нем. Adolf Hitler...")  # Your sample text
+
 if st.button("⚡ PROCESS TEXT"):
     if not input_text:
         st.warning("Input field empty!")
     else:
         with st.spinner("DECRYPTING CONTENT..."):
-            # Simulate high-tech processing
-            progress_bar = st.progress(0)
-            for percent in range(100):
-                time.sleep(0.02)
-                progress_bar.progress(percent + 1)
-            
-            # Mock AI response (replace with real API call)
-            mock_summary = f"""🔍 {style.upper()} SUMMARY ({level} DETAIL):
-            
-            - Core concept extracted from {len(input_text)} characters
-            - Key points condensed using quantum algorithms
-            - Ready for neural assimilation"""
-            
-            st.markdown(f"""
-            <div class="cyber-card">
-                <h3>📡 ANALYSIS COMPLETE</h3>
-                <p>{mock_summary}</p>
-                <div style="color: var(--accent); margin-top: 1rem;">
-                    ⚙️ Compression: {len(input_text)} → {int(len(input_text)*0.3)} chars
+            try:
+                summary = generate_summary(input_text, style, level)
+                
+                st.markdown(f"""
+                <div class="cyber-card">
+                    <h3>📡 ANALYSIS COMPLETE</h3>
+                    <p>{summary}</p>
+                    <div style="color: var(--accent); margin-top: 1rem;">
+                        ⚙️ Compression: {len(input_text)} → {len(summary)} chars
+                    </div>
                 </div>
-            </div>
-            """, unsafe_allow_html=True)
-
+                """, unsafe_allow_html=True)
+                
+            except Exception as e:
+                st.error(f"Quantum processor overload: {str(e)}")
 # ====== 🕶️ CREDITS ======
 st.divider()
 st.caption("""
