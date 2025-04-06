@@ -35,21 +35,49 @@ CREATE TABLE IF NOT EXISTS summaries (
 conn.commit()
 
 # ====== 🔐 AUTH FUNCTIONS ======
+# ====== 🗃️ DATABASE FUNCTIONS ======
 def create_user(username, password, email):
     try:
         hashed_pw = hashlib.sha256(password.encode()).hexdigest()
-        c.execute('INSERT INTO users (username, password, email, signup_date) VALUES (?, ?, ?, ?)',
-                 (username, hashed_pw, email, datetime.datetime.now().isoformat()))
+        c.execute('''
+            INSERT INTO users (username, password, email, signup_date) 
+            VALUES (?, ?, ?, ?)
+        ''', (username, hashed_pw, email, datetime.now().isoformat()))
         conn.commit()
         return True
-    except sqlite3.IntegrityError:
+    except sqlite3.IntegrityError as e:
+        st.error(f"Registration failed: {str(e)}")
         return False
 
-def verify_user(username, password):
-    hashed_pw = hashlib.sha256(password.encode()).hexdigest()
-    c.execute('SELECT id, username, plan FROM users WHERE username=? AND password=?',
-             (username, hashed_pw))
-    return c.fetchone()
+# ====== 🖥️ SIGNUP PAGE ======
+def signup_page():
+    st.title("🚀 Create Account")
+    
+    with st.form("signup_form"):
+        username = st.text_input("Username", max_chars=20)
+        email = st.text_input("Email")
+        password = st.text_input("Password", type="password")
+        confirm_pw = st.text_input("Confirm Password", type="password")
+        plan = st.selectbox("Plan", list(PLANS.keys()), 
+                          format_func=lambda x: f"{x.capitalize()} (${PLANS[x]['monthly_cost']}/mo)")
+        
+        submitted = st.form_submit_button("Sign Up")
+        
+        if submitted:
+            if password != confirm_pw:
+                st.error("Passwords don't match!")
+            elif len(username) < 3:
+                st.error("Username too short (min 3 chars)")
+            elif create_user(username, password, email):
+                st.success("Account created! Please login")
+                st.session_state.page = "login"
+                st.rerun()
+            else:
+                st.error("Username/email already exists")
+
+    if st.button("Back to Login"):
+        st.session_state.page = "login"
+        st.rerun()
 
 # ====== 💰 SUBSCRIPTION PLANS ======
 PLANS = {
