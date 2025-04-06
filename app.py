@@ -231,6 +231,9 @@ def summarizer_page():
         st.divider()
         st.checkbox("Generate Flashcards", True, key="gen_flashcards")
         st.checkbox("Create Quiz Questions", False, key="gen_quiz")
+
+        if 'user' not in st.session_state:
+           st.session_state.user = None  # Proper initialization
         
         if st.button("Logout"):
             st.session_state.user = None
