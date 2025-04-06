@@ -67,6 +67,27 @@ CITATION_STYLES = {
     "IEEE": "Institute of Electrical and Electronics Engineers"
 }
 
+
+try:
+    import pytesseract
+    from PIL import Image
+    OCR_ENABLED = True
+except ImportError:
+    OCR_ENABLED = False
+    st.warning("Image OCR disabled - install pytesseract and pillow")
+
+def process_file(file):
+    if file.type.startswith("image/"):
+        if not OCR_ENABLED:
+            return "Enable OCR by installing: pip install pytesseract pillow"
+        
+        try:
+            img = Image.open(file)
+            return pytesseract.image_to_string(img)
+        except Exception as e:
+            return f"OCR failed: {str(e)}"
+    # ... rest of your file processing code
+
 # ====== 🔐 AUTHENTICATION ======
 def create_user(username, password, email):
     try:
