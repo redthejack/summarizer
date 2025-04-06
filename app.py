@@ -1,15 +1,20 @@
 import streamlit as st
 from openai import OpenAI
+import PyPDF2
+import docx
+import pytesseract
+from PIL import Image
+import tempfile
+import datetime
+import base64
 import sqlite3
 import hashlib
-import datetime
-from datetime import datetime
 
 # ====== 🗃️ DATABASE SETUP ======
-conn = sqlite3.connect('users.db', check_same_thread=False)
+conn = sqlite3.connect('academic_users.db', check_same_thread=False)
 c = conn.cursor()
 
-# Create tables if they don't exist
+# Create tables
 c.execute('''
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,7 +31,8 @@ c.execute('''
 CREATE TABLE IF NOT EXISTS summaries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
-    input_text TEXT,
+    title TEXT,
+    content TEXT,
     summary TEXT,
     created_at TEXT,
     FOREIGN KEY(user_id) REFERENCES users(id)
@@ -34,87 +40,132 @@ CREATE TABLE IF NOT EXISTS summaries (
 ''')
 conn.commit()
 
-# ====== 🔐 AUTH FUNCTIONS ======
-# ====== 🗃️ DATABASE FUNCTIONS ======
+# ====== 🎓 ACADEMIC PRESETS ======
+ACADEMIC_MODES = {
+    "Lecture Notes": {
+        "prompt": "Convert these lecture notes into: 1) Key concepts 2) Definitions 3) Examples 4) Potential exam questions",
+        "icon": "📝"
+    },
+    "Research Paper": {
+        "prompt": "Extract: 1) Research question 2) Methodology 3) Findings 4) Limitations 5) Future work",
+        "icon": "🔬"
+    },
+    "Textbook Chapter": {
+        "prompt": "Summarize with: 1) Chapter objectives 2) Key theorems (boxed) 3) Important diagrams 4) Practice problems",
+        "icon": "📚"
+    },
+    "Case Study": {
+        "prompt": "Analyze: 1) Core problem 2) Stakeholders 3) Solutions proposed 4) Best alternative",
+        "icon": "💼"
+    }
+}
+
+CITATION_STYLES = {
+    "APA": "American Psychological Association",
+    "MLA": "Modern Language Association",
+    "Chicago": "Chicago Manual of Style",
+    "IEEE": "Institute of Electrical and Electronics Engineers"
+}
+
+# ====== 🔐 AUTHENTICATION ======
 def create_user(username, password, email):
     try:
         hashed_pw = hashlib.sha256(password.encode()).hexdigest()
         c.execute('''
-            INSERT INTO users (username, password, email, signup_date) 
+            INSERT INTO users (username, password, email, signup_date)
             VALUES (?, ?, ?, ?)
-        ''', (username, hashed_pw, email, datetime.now().isoformat()))
+        ''', (username, hashed_pw, email, datetime.datetime.now().isoformat()))
         conn.commit()
         return True
-    except sqlite3.IntegrityError as e:
-        st.error(f"Registration failed: {str(e)}")
+    except sqlite3.IntegrityError:
         return False
 
-# ====== 🖥️ SIGNUP PAGE ======
-def signup_page():
-    st.title("🚀 Create Account")
+def verify_user(username, password):
+    hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+    c.execute('''
+        SELECT id, username, plan FROM users WHERE username=? AND password=?
+    ''', (username, hashed_pw))
+    return c.fetchone()
+
+# ====== 🤖 AI PROCESSING ======
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+
+def generate_academic_summary(text, mode, citation_style):
+    prompt = f'''
+    As a university professor, create a {mode} summary:
     
-    with st.form("signup_form"):
-        username = st.text_input("Username", max_chars=20)
-        email = st.text_input("Email")
-        password = st.text_input("Password", type="password")
-        confirm_pw = st.text_input("Confirm Password", type="password")
-        plan = st.selectbox("Plan", list(PLANS.keys()), 
-                          format_func=lambda x: f"{x.capitalize()} (${PLANS[x]['monthly_cost']}/mo)")
-        
-        submitted = st.form_submit_button("Sign Up")
-        
-        if submitted:
-            if password != confirm_pw:
-                st.error("Passwords don't match!")
-            elif len(username) < 3:
-                st.error("Username too short (min 3 chars)")
-            elif create_user(username, password, email):
-                st.success("Account created! Please login")
-                st.session_state.page = "login"
-                st.rerun()
-            else:
-                st.error("Username/email already exists")
+    {ACADEMIC_MODES[mode]['prompt']}
+    
+    Additional Requirements:
+    - Use {citation_style} citation style
+    - Bold key terms (**term**)
+    - Box important formulas [\boxed{{x = y}}]
+    - Add "Discussion Questions" section
+    - Include "Further Reading" suggestions
+    
+    Text: {text}
+    '''
+    
+    response = client.chat.completions.create(
+        model="gpt-4-turbo",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3
+    )
+    return response.choices[0].message.content
 
-    if st.button("Back to Login"):
-        st.session_state.page = "login"
-        st.rerun()
+def generate_flashcards(summary):
+    prompt = f'''
+    Convert this summary into 10 Anki-style flashcards:
+    - Front: Question/term
+    - Back: Definition/answer
+    - Format: Q: ... | A: ...
+    
+    Summary: {summary}
+    '''
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2
+    )
+    return response.choices[0].message.content
 
-# ====== 💰 SUBSCRIPTION PLANS ======
-PLANS = {
-    "free": {
-        "monthly_cost": 0,
-        "max_summaries": 10,
-        "model": "gpt-3.5-turbo"
-    },
-    "pro": {
-        "monthly_cost": 9.99,
-        "max_summaries": 100,
-        "model": "gpt-4-turbo"
-    },
-    "enterprise": {
-        "monthly_cost": 29.99,
-        "max_summaries": 1000,
-        "model": "gpt-4-turbo"
-    }
-}
+# ====== 📂 FILE PROCESSING ======
+def process_file(file):
+    if file.type == "application/pdf":
+        text = ""
+        reader = PyPDF2.PdfReader(file)
+        for page in reader.pages:
+            text += page.extract_text() + "\n"
+        return text
+    
+    elif file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        doc = docx.Document(file)
+        return "\n".join([para.text for para in doc.paragraphs])
+    
+    elif file.type.startswith("image/"):
+        img = Image.open(file)
+        return pytesseract.image_to_string(img)
+    
+    return file.read().decode("utf-8")
 
-# ====== 🤖 AI SETUP ======
-@st.cache_resource
-def init_client():
-    return OpenAI(api_key=st.secrets["openai"]["api_key"])
+# ====== 🖥️ STREAMLIT UI ======
+st.set_page_config(page_title="Academic AI Suite", layout="wide", page_icon="🎓")
 
-client = init_client()
+# Initialize session state
+if 'user' not in st.session_state:
+    st.session_state.user = None
+if 'page' not in st.session_state:
+    st.session_state.page = "login"
 
-# ====== 🖥️ AUTH PAGES ======
+# ====== 🚀 PAGES ======
 def login_page():
-    st.title("🔒 Login to Summarizer Pro")
+    st.title("University Login")
     
     with st.form("login_form"):
-        username = st.text_input("Username")
+        username = st.text_input("Student/Faculty ID")
         password = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Login")
         
-        if submitted:
+        if st.form_submit_button("Login"):
             user = verify_user(username, password)
             if user:
                 st.session_state.user = {
@@ -122,126 +173,166 @@ def login_page():
                     "username": user[1],
                     "plan": user[2]
                 }
-                st.success("Logged in successfully!")
+                st.session_state.page = "summarizer"
                 st.rerun()
             else:
                 st.error("Invalid credentials")
-
+    
     if st.button("Create Account"):
         st.session_state.page = "signup"
         st.rerun()
 
 def signup_page():
-    st.title("🚀 Create Account")
+    st.title("Academic Account Registration")
     
     with st.form("signup_form"):
-        username = st.text_input("Username")
-        email = st.text_input("Email")
-        password = st.text_input("Password", type="password")
-        plan = st.selectbox("Plan", list(PLANS.keys()), format_func=lambda x: f"{x.capitalize()} (${PLANS[x]['monthly_cost']}/mo)")
+        username = st.text_input("Create Username", help="Use your university email")
+        email = st.text_input("Institutional Email")
+        password = st.text_input("Create Password", type="password")
+        confirm = st.text_input("Confirm Password", type="password")
         
-        submitted = st.form_submit_button("Sign Up")
-        
-        if submitted:
-            if create_user(username, password, email):
+        if st.form_submit_button("Register"):
+            if password != confirm:
+                st.error("Passwords don't match!")
+            elif len(password) < 8:
+                st.error("Password must be 8+ characters")
+            elif create_user(username, password, email):
                 st.success("Account created! Please login")
                 st.session_state.page = "login"
                 st.rerun()
             else:
                 st.error("Username/email already exists")
-
+    
     if st.button("Back to Login"):
         st.session_state.page = "login"
         st.rerun()
 
-# ====== 📊 PROFILE PAGE ======
-def profile_page():
-    st.title(f"👤 {st.session_state.user['username']}'s Profile")
-    
-    # User stats
-    c.execute('SELECT COUNT(*) FROM summaries WHERE user_id=?', (st.session_state.user['id'],))
-    summary_count = c.fetchone()[0]
-    
-    with st.expander("📊 Usage Stats"):
-        col1, col2 = st.columns(2)
-        col1.metric("Current Plan", st.session_state.user['plan'].capitalize())
-        col2.metric("Summaries This Month", f"{summary_count}/{PLANS[st.session_state.user['plan']]['max_summaries']}")
-        
-        st.progress(summary_count / PLANS[st.session_state.user['plan']]['max_summaries'])
-    
-    # Plan upgrade
-    with st.expander("💎 Upgrade Plan"):
-        current_plan = st.session_state.user['plan']
-        for plan, details in PLANS.items():
-            if plan != current_plan:
-                if st.button(f"Upgrade to {plan.capitalize()} (${details['monthly_cost']}/mo)"):
-                    c.execute('UPDATE users SET plan=? WHERE id=?', 
-                             (plan, st.session_state.user['id']))
-                    conn.commit()
-                    st.session_state.user['plan'] = plan
-                    st.success(f"Upgraded to {plan} plan!")
-                    st.rerun()
-    
-    if st.button("Logout"):
-        del st.session_state.user
-        st.session_state.page = "login"
-        st.rerun()
-
-# ====== ✂️ MAIN APP ======
 def summarizer_page():
-    st.title("✂️ AI Summarizer Pro")
-    st.write(f"Welcome back, {st.session_state.user['username']}!")
+    # Header
+    st.title(f"{ACADEMIC_MODES[st.session_state.mode]['icon']} Academic AI Suite")
+    st.caption(f"Logged in as {st.session_state.user['username']} | Plan: {st.session_state.user['plan'].capitalize()}")
     
-    # Check usage limits
-    c.execute('SELECT COUNT(*) FROM summaries WHERE user_id=? AND created_at > date("now", "-30 days")',
-             (st.session_state.user['id'],))
-    monthly_usage = c.fetchone()[0]
+    # Main Columns
+    input_col, config_col = st.columns([3, 1])
     
-    if monthly_usage >= PLANS[st.session_state.user['plan']]['max_summaries']:
-        st.error("You've reached your monthly summary limit! Upgrade to continue.")
-        return
+    with config_col:
+        st.subheader("Academic Settings")
+        st.session_state.mode = st.selectbox(
+            "Document Type",
+            list(ACADEMIC_MODES.keys()),
+            format_func=lambda x: f"{ACADEMIC_MODES[x]['icon']} {x}"
+        )
+        st.session_state.citation = st.selectbox(
+            "Citation Style",
+            list(CITATION_STYLES.keys()),
+            format_func=lambda x: f"{x} ({CITATION_STYLES[x]})"
+        )
+        
+        st.divider()
+        st.checkbox("Generate Flashcards", True, key="gen_flashcards")
+        st.checkbox("Create Quiz Questions", False, key="gen_quiz")
+        
+        if st.button("Logout"):
+            st.session_state.user = None
+            st.session_state.page = "login"
+            st.rerun()
     
-    # Summarizer UI
-    input_text = st.text_area("Enter text to summarize:", height=200)
-    
-    if st.button("Generate Summary"):
-        with st.spinner("Creating summary..."):
-            try:
-                response = client.chat.completions.create(
-                    model=PLANS[st.session_state.user['plan']]['model'],
-                    messages=[{
-                        "role": "user",
-                        "content": f"Create a concise summary:\n\n{input_text}"
-                    }]
-                )
-                summary = response.choices[0].message.content
-                
-                # Save to database
-                c.execute('INSERT INTO summaries (user_id, input_text, summary, created_at) VALUES (?, ?, ?, ?)',
-                         (st.session_state.user['id'], input_text, summary, datetime.datetime.now().isoformat()))
-                conn.commit()
-                
-                st.subheader("Summary")
-                st.write(summary)
-                
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
+    with input_col:
+        # Input Methods
+        input_method = st.radio(
+            "Input Method",
+            ["Text", "File Upload", "Scan/Photo"],
+            horizontal=True
+        )
+        
+        text = ""
+        if input_method == "Text":
+            text = st.text_area("Paste academic content:", height=300)
+        else:
+            file = st.file_uploader(
+                "Upload Document",
+                type=["pdf", "docx", "txt", "png", "jpg", "jpeg"],
+                accept_multiple_files=False
+            )
+            if file:
+                with st.spinner("Processing document..."):
+                    text = process_file(file)
+                    st.success("File processed!")
+        
+        # Processing
+        if st.button("Generate Academic Summary"):
+            if text:
+                with st.spinner("Creating enhanced summary..."):
+                    # Save original
+                    title = f"{st.session_state.mode} - {datetime.datetime.now().strftime('%Y-%m-%d')}"
+                    summary = generate_academic_summary(
+                        text,
+                        st.session_state.mode,
+                        st.session_state.citation
+                    )
+                    
+                    # Save to database
+                    c.execute('''
+                        INSERT INTO summaries (user_id, title, content, summary, created_at)
+                        VALUES (?, ?, ?, ?, ?)
+                    ''', (
+                        st.session_state.user['id'],
+                        title,
+                        text[:500] + ("..." if len(text) > 500 else ""),
+                        summary,
+                        datetime.datetime.now().isoformat()
+                    ))
+                    conn.commit()
+                    
+                    # Display
+                    st.subheader("Academic Summary")
+                    st.markdown(summary)
+                    
+                    # Study Tools
+                    if st.session_state.gen_flashcards:
+                        st.divider()
+                        st.subheader("📚 Flashcards")
+                        flashcards = generate_flashcards(summary)
+                        st.download_button(
+                            "Download Flashcards",
+                            flashcards,
+                            file_name=f"flashcards_{title}.txt"
+                        )
+                        st.text_area("Flashcard Preview", flashcards, height=200)
+                    
+                    # Export
+                    st.divider()
+                    export_col1, export_col2 = st.columns(2)
+                    with export_col1:
+                        st.download_button(
+                            "Download Summary",
+                            summary,
+                            file_name=f"summary_{title}.md"
+                        )
+                    with export_col2:
+                        st.download_button(
+                            "Save to References",
+                            f"# {title}\n\n{summary}",
+                            file_name=f"references_{title}.md"
+                        )
+            else:
+                st.warning("Please input content first")
 
 # ====== 🚀 APP FLOW ======
-if 'page' not in st.session_state:
-    st.session_state.page = "login"
-
-if 'user' not in st.session_state:
-    if st.session_state.page == "login":
-        login_page()
-    elif st.session_state.page == "signup":
-        signup_page()
+if st.session_state.page == "login":
+    login_page()
+elif st.session_state.page == "signup":
+    signup_page()
 else:
-    # Authenticated routes
-    tab1, tab2 = st.tabs(["Summarizer", "Profile"])
-    
-    with tab1:
-        summarizer_page()
-    
-    with tab2:
-        profile_page()
+    if 'mode' not in st.session_state:
+        st.session_state.mode = "Lecture Notes"
+    if 'citation' not in st.session_state:
+        st.session_state.citation = "APA"
+    summarizer_page()
+
+# ====== 🏁 FOOTER ======
+st.divider()
+st.caption("""
+🎓 **Academic AI Suite** | Supports all disciplines | 
+[Terms] | [Privacy] | v2.5
+""")
